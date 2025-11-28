@@ -117,6 +117,13 @@ export const mockBackend = {
     return newRoom;
   },
 
+  deleteRoom: async (roomId: string): Promise<void> => {
+    const rooms = getStorage<Room[]>('chat_rooms', INITIAL_ROOMS);
+    const updatedRooms = rooms.filter(r => r.id !== roomId);
+    setStorage('chat_rooms', updatedRooms);
+    broadcast('ROOM_DELETED', { roomId });
+  },
+
   // Users
   getUsers: async (): Promise<User[]> => {
     return getStorage<User[]>('chat_users', INITIAL_USERS);

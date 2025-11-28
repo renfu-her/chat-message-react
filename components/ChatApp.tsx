@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, FormEvent } from 'react';
 import { 
   LogOut, Send, Image as ImageIcon, Plus, 
-  Lock, Hash, MoreVertical, X, User as UserIcon, Settings, Menu, MessageSquare
+  Lock, Hash, MoreVertical, X, User as UserIcon, Settings, Menu, MessageSquare, Trash2
 } from 'lucide-react';
 import { User, Room, Message, AppView } from '../types';
 import { mockBackend, subscribeToSocket } from '../services/mockBackend';
@@ -78,6 +78,14 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
           break;
         case 'ROOM_CREATED':
           setRooms(prev => [...prev, event.payload]);
+          break;
+        case 'ROOM_DELETED':
+          setRooms(prev => prev.filter(r => r.id !== event.payload.roomId));
+          // If the current user is in the deleted room, boot them out
+          if (currentRoomId === event.payload.roomId) {
+            setActiveRoomId(null);
+            alert("The room you were in has been deleted.");
+          }
           break;
         case 'USER_UPDATE':
           setUsers(prev => prev.map(u => u.id === event.payload.id ? event.payload : u));
@@ -203,6 +211,16 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
       alert("Failed to create room");
     }
   };
+  
+  const handleDeleteRoom = async (roomId: string) => {
+    if (!window.confirm("Are you sure you want to delete this room? This action cannot be undone.")) return;
+    try {
+        await mockBackend.deleteRoom(roomId);
+    } catch (error) {
+        console.error("Failed to delete room", error);
+        alert("Could not delete room");
+    }
+  };
 
   const maskEmail = (email: string) => {
     const [name] = email.split('@');
@@ -210,7 +228,8 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-darker overflow-hidden relative">
+    <div className="flex h-screen w-full bg-slate-950 justify-center">
+      <div className="flex h-full w-full max-w-[1440px] bg-darker overflow-hidden relative shadow-2xl">
       
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 w-full h-14 bg-paper border-b border-slate-700 flex items-center justify-between px-4 z-20">
@@ -249,13 +268,27 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                 ${activeRoomId === room.id ? 'bg-primary/20 border border-primary/50 text-white' : 'hover:bg-slate-800 text-slate-400'}
               `}
             >
-              <div className="flex items-center gap-3">
-                {room.isPrivate ? <Lock size={16} className="text-amber-500" /> : <Hash size={16} className="text-slate-500" />}
-                <div className="text-left">
-                    <span className="block font-medium truncate max-w-[140px]">{room.name}</span>
-                    <span className="text-xs opacity-60 truncate max-w-[140px] block">{room.description}</span>
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {room.isPrivate ? <Lock size={16} className="text-amber-500 flex-shrink-0" /> : <Hash size={16} className="text-slate-500 flex-shrink-0" />}
+                <div className="text-left overflow-hidden">
+                    <span className="block font-medium truncate">{room.name}</span>
+                    <span className="text-xs opacity-60 truncate block">{room.description}</span>
                 </div>
               </div>
+
+              {currentUser.id === room.createdBy && (
+                 <div
+                    role="button"
+                    title="Delete Room"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteRoom(room.id);
+                    }}
+                    className="ml-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+                 >
+                    <Trash2 size={16} />
+                 </div>
+              )}
             </button>
           ))}
         </div>
@@ -504,6 +537,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
         </div>
       )}
 
+      </div>
     </div>
   );
 };
