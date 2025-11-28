@@ -241,7 +241,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
 
   const maskEmail = (email: string) => {
     const [name] = email.split('@');
-    return `${name}*****`;
+    return `${name}@*****`;
   };
 
   return (
