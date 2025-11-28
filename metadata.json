@@ -1,0 +1,8 @@
+{
+  "name": "WebP Chat Connect",
+  "description": "A responsive real-time chat application with room management, private password-protected rooms, user profiles, and automatic client-side image-to-WebP conversion.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

@@ -1,0 +1,587 @@
+import React, { useState, useEffect, useRef, FormEvent } from 'react';
+import { 
+  LogOut, Send, Image as ImageIcon, Plus, 
+  Lock, Hash, MoreVertical, X, User as UserIcon, Settings, Menu, MessageSquare
+} from 'lucide-react';
+import { User, Room, Message, AppView } from '../types';
+import { mockBackend, subscribeToSocket } from '../services/mockBackend';
+import { convertImageToWebP } from '../services/imageUtils';
+
+interface ChatAppProps {
+  currentUser: User;
+  onLogout: () => void;
+}
+
+const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
+  // State
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  
+  // UI State
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar
+  const [userListOpen, setUserListOpen] = useState(false); // Mobile user list
+  
+  // Private Room Join State
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pendingRoom, setPendingRoom] = useState<Room | null>(null);
+  const [joinPassword, setJoinPassword] = useState('');
+  const [joinError, setJoinError] = useState('');
+
+  // Refs
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeRoomIdRef = useRef<string | null>(null);
+
+  // Form State for Room Creation
+  const [newRoomName, setNewRoomName] = useState('');
+  const [isNewRoomPrivate, setIsNewRoomPrivate] = useState(false);
+  const [newRoomPassword, setNewRoomPassword] = useState('');
+
+  // Sync activeRoomId to Ref for socket listeners
+  useEffect(() => {
+    activeRoomIdRef.current = activeRoomId;
+  }, [activeRoomId]);
+
+  // Initial Data Load & Socket Subscription
+  useEffect(() => {
+    const loadData = async () => {
+      const [loadedRooms, loadedUsers] = await Promise.all([
+        mockBackend.getRooms(),
+        mockBackend.getUsers()
+      ]);
+      setRooms(loadedRooms);
+      setUsers(loadedUsers);
+      
+      // Removed auto-join logic to show "Select a room" state initially
+    };
+    loadData();
+
+    // Socket Subscription
+    const unsubscribe = subscribeToSocket((event) => {
+      // Use ref to get current room ID without triggering effect re-run
+      const currentRoomId = activeRoomIdRef.current;
+      
+      switch (event.type) {
+        case 'NEW_MESSAGE':
+          setMessages(prev => {
+             // Only add if it belongs to current room
+             if (event.payload.roomId === currentRoomId) {
+                return [...prev, event.payload];
+             }
+             return prev;
+          });
+          break;
+        case 'ROOM_CREATED':
+          setRooms(prev => [...prev, event.payload]);
+          break;
+        case 'USER_UPDATE':
+          setUsers(prev => prev.map(u => u.id === event.payload.id ? event.payload : u));
+          break;
+        case 'USER_JOINED':
+          setUsers(prev => [...prev, event.payload]);
+          break;
+        case 'USER_LEFT':
+          setUsers(prev => prev.map(u => u.id === event.payload.userId ? { ...u, isOnline: false } : u));
+          break;
+      }
+    });
+
+    return () => { unsubscribe(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once
+
+  // Scroll to bottom on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleJoinRoom = async (room: Room) => {
+    if (room.id === activeRoomId) return;
+
+    if (room.isPrivate) {
+      setPendingRoom(room);
+      setJoinPassword('');
+      setJoinError('');
+      setShowPasswordModal(true);
+      return;
+    }
+
+    await executeJoinRoom(room.id);
+  };
+
+  const executeJoinRoom = async (roomId: string) => {
+    setActiveRoomId(roomId);
+    const msgs = await mockBackend.getMessages(roomId);
+    setMessages(msgs);
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
+  const handleJoinPrivateSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!pendingRoom) return;
+
+    if (joinPassword === pendingRoom.password) {
+      await executeJoinRoom(pendingRoom.id);
+      closePasswordModal();
+    } else {
+      setJoinError('Incorrect password');
+    }
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPendingRoom(null);
+    setJoinPassword('');
+    setJoinError('');
+  };
+
+  const handleSendMessage = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if ((!inputMessage.trim() && !fileInputRef.current?.files?.length) || !activeRoomId) return;
+
+    try {
+        await mockBackend.sendMessage({
+          roomId: activeRoomId,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar,
+          content: inputMessage,
+          type: 'text'
+        });
+        setInputMessage('');
+    } catch (err) {
+        console.error(err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeRoomId) return;
+
+    try {
+      // Requirement: Convert to WebP
+      const webpBase64 = await convertImageToWebP(file);
+      
+      await mockBackend.sendMessage({
+        roomId: activeRoomId,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.avatar,
+        content: webpBase64,
+        type: 'image'
+      });
+    } catch (err) {
+      console.error("Image upload failed", err);
+      alert("Failed to process image");
+    } finally {
+        if(fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const createRoom = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newRoomName.trim()) return;
+    
+    try {
+      await mockBackend.createRoom({
+        name: newRoomName,
+        isPrivate: isNewRoomPrivate,
+        password: isNewRoomPrivate ? newRoomPassword : undefined,
+        createdBy: currentUser.id,
+        description: 'New custom room'
+      });
+      setShowCreateRoom(false);
+      setNewRoomName('');
+      setNewRoomPassword('');
+      setIsNewRoomPrivate(false);
+    } catch (err) {
+      alert("Failed to create room");
+    }
+  };
+
+  const maskEmail = (email: string) => {
+    const [name] = email.split('@');
+    return `${name}*****`;
+  };
+
+  return (
+    <div className="flex h-screen w-full bg-darker overflow-hidden relative">
+      
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 w-full h-14 bg-paper border-b border-slate-700 flex items-center justify-between px-4 z-20">
+        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-slate-300">
+            <Menu size={24} />
+        </button>
+        <h1 className="font-bold text-white truncate">
+            {rooms.find(r => r.id === activeRoomId)?.name || 'Select Room'}
+        </h1>
+        <button onClick={() => setUserListOpen(!userListOpen)} className="text-slate-300">
+            <UserIcon size={24} />
+        </button>
+      </div>
+
+      {/* LEFT: Room List Sidebar */}
+      <aside className={`
+        fixed md:relative z-30 w-72 h-full bg-paper border-r border-slate-700 flex flex-col transition-transform duration-300
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-primary">Rooms</h2>
+          <button 
+            onClick={() => setShowCreateRoom(true)}
+            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full transition"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto custom-scroll p-2 space-y-2">
+          {rooms.map(room => (
+            <button
+              key={room.id}
+              onClick={() => handleJoinRoom(room)}
+              className={`w-full p-3 rounded-lg flex items-center justify-between transition group
+                ${activeRoomId === room.id ? 'bg-primary/20 border border-primary/50 text-white' : 'hover:bg-slate-800 text-slate-400'}
+              `}
+            >
+              <div className="flex items-center gap-3">
+                {room.isPrivate ? <Lock size={16} className="text-amber-500" /> : <Hash size={16} className="text-slate-500" />}
+                <div className="text-left">
+                    <span className="block font-medium truncate max-w-[140px]">{room.name}</span>
+                    <span className="text-xs opacity-60 truncate max-w-[140px] block">{room.description}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Current User footer */}
+        <div className="p-4 border-t border-slate-700 bg-slate-900/50 flex items-center justify-between">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfile(true)}>
+                <img src={currentUser.avatar} alt="Me" className="w-8 h-8 rounded-full bg-slate-600 object-cover" />
+                <div className="flex flex-col">
+                    <span className="text-sm font-bold text-white">{currentUser.name}</span>
+                    <span className="text-xs text-slate-500">{maskEmail(currentUser.email)}</span>
+                </div>
+            </div>
+            <button onClick={onLogout} className="text-slate-500 hover:text-red-400">
+                <LogOut size={18} />
+            </button>
+        </div>
+      </aside>
+
+      {/* CENTER: Chat Area */}
+      <main className="flex-1 flex flex-col h-full relative pt-14 md:pt-0">
+        
+        {!activeRoomId ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-darker p-8 text-center">
+            <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6">
+                <MessageSquare size={40} className="text-slate-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-300 mb-2">Welcome, {currentUser.name}!</h3>
+            <p className="max-w-md">Please select a room from the sidebar to start chatting. Private rooms require a password to enter.</p>
+          </div>
+        ) : (
+          <>
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll bg-darker">
+              {messages.map((msg, idx) => {
+                const isMe = msg.senderId === currentUser.id;
+                return (
+                  <div key={msg.id || idx} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <img 
+                        src={msg.senderAvatar} 
+                        alt={msg.senderName} 
+                        className="w-8 h-8 rounded-full object-cover mt-1 flex-shrink-0" 
+                    />
+                    <div className={`max-w-[75%] md:max-w-[60%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs text-slate-400">{msg.senderName}</span>
+                        <span className="text-[10px] text-slate-600">
+                            {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
+                      
+                      {msg.type === 'text' ? (
+                        <div className={`
+                            px-4 py-2 rounded-2xl text-sm leading-relaxed
+                            ${isMe ? 'bg-primary text-white rounded-tr-sm' : 'bg-slate-800 text-slate-200 rounded-tl-sm'}
+                        `}>
+                            {msg.content}
+                        </div>
+                      ) : (
+                        <div className={`
+                            p-1 rounded-lg overflow-hidden border border-slate-700
+                            ${isMe ? 'bg-primary/20' : 'bg-slate-800'}
+                        `}>
+                            <img src={msg.content} alt="Shared" className="max-w-full rounded h-auto max-h-64 object-contain" />
+                            <div className="text-[10px] text-center w-full text-slate-500 mt-1 uppercase tracking-wider">WEBP Generated</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input Area */}
+            <div className="p-4 bg-paper border-t border-slate-700">
+                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                    <div className="relative">
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            ref={fileInputRef}
+                            className="hidden" 
+                            onChange={handleFileUpload}
+                        />
+                        <button 
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-3 text-slate-400 hover:text-primary hover:bg-slate-700 rounded-full transition"
+                        >
+                            <ImageIcon size={20} />
+                        </button>
+                    </div>
+                    <input
+                        type="text"
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        placeholder={`Message #${rooms.find(r => r.id === activeRoomId)?.name || '...'}`}
+                        className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-full px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition placeholder-slate-500"
+                    />
+                    <button 
+                        type="submit"
+                        className="p-3 bg-primary hover:bg-blue-600 text-white rounded-full transition shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!inputMessage.trim() && !activeRoomId}
+                    >
+                        <Send size={20} />
+                    </button>
+                </form>
+            </div>
+          </>
+        )}
+      </main>
+
+      {/* RIGHT: User List Sidebar (Collapsible) */}
+      <aside className={`
+        fixed md:relative z-30 right-0 w-64 h-full bg-paper border-l border-slate-700 flex flex-col transition-transform duration-300
+        ${userListOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+      `}>
+         <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+            <h2 className="font-bold text-slate-200">Online Users</h2>
+            <button className="md:hidden text-slate-400" onClick={() => setUserListOpen(false)}>
+                <X size={18} />
+            </button>
+         </div>
+         <div className="flex-1 overflow-y-auto custom-scroll p-2">
+             {users.map(u => (
+                 <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-slate-800 rounded-lg transition opacity-90 hover:opacity-100">
+                     <div className="relative">
+                         <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full object-cover bg-slate-700" />
+                         {u.isOnline && (
+                             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-paper rounded-full"></span>
+                         )}
+                     </div>
+                     <div className="flex flex-col overflow-hidden">
+                         <span className="text-sm font-medium text-slate-200 truncate">{u.name}</span>
+                         <span className="text-xs text-slate-500 truncate">{maskEmail(u.email)}</span>
+                     </div>
+                 </div>
+             ))}
+         </div>
+      </aside>
+
+      {/* Overlay for mobile sidebars */}
+      {(sidebarOpen || userListOpen) && (
+        <div 
+            className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
+            onClick={() => { setSidebarOpen(false); setUserListOpen(false); }}
+        />
+      )}
+
+      {/* Create Room Modal */}
+      {showCreateRoom && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+            <div className="bg-paper border border-slate-700 p-6 rounded-2xl w-full max-w-md shadow-2xl">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-white">Create New Room</h3>
+                    <button onClick={() => setShowCreateRoom(false)} className="text-slate-400 hover:text-white">
+                        <X size={20} />
+                    </button>
+                </div>
+                <form onSubmit={createRoom} className="space-y-4">
+                    <div>
+                        <label className="block text-sm text-slate-400 mb-1">Room Name</label>
+                        <input 
+                            required
+                            type="text" 
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                            value={newRoomName}
+                            onChange={e => setNewRoomName(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="checkbox" 
+                            id="isPrivate"
+                            checked={isNewRoomPrivate}
+                            onChange={e => setIsNewRoomPrivate(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-primary focus:ring-offset-0"
+                        />
+                        <label htmlFor="isPrivate" className="text-sm text-slate-300">Private Room (Requires Password)</label>
+                    </div>
+                    {isNewRoomPrivate && (
+                         <div>
+                            <label className="block text-sm text-slate-400 mb-1">Room Password</label>
+                            <input 
+                                required={isNewRoomPrivate}
+                                type="password" 
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                                value={newRoomPassword}
+                                onChange={e => setNewRoomPassword(e.target.value)}
+                            />
+                        </div>
+                    )}
+                    <button type="submit" className="w-full py-3 bg-primary hover:bg-blue-600 rounded-lg font-bold text-white transition mt-2">
+                        Create Room
+                    </button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {/* Join Private Room Modal */}
+      {showPasswordModal && pendingRoom && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+          <div className="bg-paper border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+             <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-2">
+                    <Lock className="text-amber-500" size={24} />
+                    <h3 className="text-xl font-bold text-white">Private Room</h3>
+                </div>
+                <button onClick={closePasswordModal} className="text-slate-400 hover:text-white">
+                    <X size={20} />
+                </button>
+            </div>
+            <p className="text-slate-400 mb-4">
+                Enter password to join <span className="text-white font-medium">{pendingRoom.name}</span>
+            </p>
+            <form onSubmit={handleJoinPrivateSubmit}>
+                <input 
+                    autoFocus
+                    type="password"
+                    placeholder="Room Password"
+                    className={`w-full bg-slate-900 border ${joinError ? 'border-red-500' : 'border-slate-700'} rounded-lg p-3 text-white focus:border-primary focus:outline-none mb-2`}
+                    value={joinPassword}
+                    onChange={e => { setJoinPassword(e.target.value); setJoinError(''); }}
+                />
+                {joinError && <p className="text-red-400 text-xs mb-4">{joinError}</p>}
+                
+                <div className="flex gap-3 mt-4">
+                    <button type="button" onClick={closePasswordModal} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition">
+                        Cancel
+                    </button>
+                    <button type="submit" className="flex-1 py-2 bg-primary hover:bg-blue-600 rounded-lg text-white font-bold transition">
+                        Join
+                    </button>
+                </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* User Profile Modal */}
+      {showProfile && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+            <UserProfileModal user={currentUser} onClose={() => setShowProfile(false)} />
+        </div>
+      )}
+
+    </div>
+  );
+};
+
+// Profile Modal Sub-component
+const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = ({ user, onClose }) => {
+    const [name, setName] = useState(user.name);
+    const [avatar, setAvatar] = useState(user.avatar);
+    const [password, setPassword] = useState(user.password || '');
+    
+    const handleSave = async (e: FormEvent) => {
+        e.preventDefault();
+        try {
+            await mockBackend.updateProfile(user.id, { name, avatar, password });
+            onClose();
+        } catch (error) {
+            alert('Failed to update profile');
+        }
+    };
+
+    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            try {
+                const webp = await convertImageToWebP(file);
+                setAvatar(webp);
+            } catch(e) {
+                alert("Failed to process avatar image");
+            }
+        }
+    };
+
+    return (
+        <div className="bg-paper border border-slate-700 p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
+             <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <X size={20} />
+            </button>
+            <h3 className="text-xl font-bold text-white mb-6">Edit Profile</h3>
+            
+            <form onSubmit={handleSave} className="space-y-4">
+                <div className="flex flex-col items-center mb-4">
+                    <div className="relative group cursor-pointer w-24 h-24 mb-2">
+                        <img src={avatar} alt="Profile" className="w-full h-full rounded-full object-cover border-2 border-primary" />
+                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                            <ImageIcon size={24} className="text-white" />
+                        </div>
+                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleAvatarUpload} />
+                    </div>
+                    <span className="text-xs text-slate-400">Click to change avatar (WebP)</span>
+                </div>
+
+                <div>
+                    <label className="block text-sm text-slate-400 mb-1">Display Name</label>
+                    <input 
+                        required type="text" value={name} onChange={e => setName(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                    />
+                </div>
+                 <div>
+                    <label className="block text-sm text-slate-400 mb-1">Email (Read Only)</label>
+                    <input 
+                        readOnly type="email" value={user.email}
+                        className="w-full bg-slate-900/50 border border-slate-800 rounded-lg p-3 text-slate-500 cursor-not-allowed"
+                    />
+                </div>
+                 <div>
+                    <label className="block text-sm text-slate-400 mb-1">Password</label>
+                    <input 
+                        required type="text" value={password} onChange={e => setPassword(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                    />
+                </div>
+                <button type="submit" className="w-full py-3 bg-primary hover:bg-blue-600 rounded-lg font-bold text-white transition mt-4">
+                    Save Changes
+                </button>
+            </form>
+        </div>
+    );
+}
+
+export default ChatApp;
