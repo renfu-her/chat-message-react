@@ -28,6 +28,10 @@ const App: React.FC = () => {
     if (savedUser) {
         setUser(JSON.parse(savedUser));
     }
+    
+    // Set initial theme on body if stored
+    const storedTheme = localStorage.getItem('chat_theme') || 'dark';
+    document.documentElement.className = storedTheme;
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -75,18 +79,18 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-darker flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-paper border border-slate-800 p-8 rounded-2xl shadow-2xl">
+    <div className="min-h-screen bg-darker flex flex-col items-center justify-center p-4 transition-colors duration-300">
+      <div className="w-full max-w-md bg-paper border border-border-base p-8 rounded-2xl shadow-2xl">
         <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center">
                 <MessageSquare size={32} className="text-primary" />
             </div>
         </div>
         
-        <h2 className="text-3xl font-bold text-center text-white mb-2">
+        <h2 className="text-3xl font-bold text-center text-txt-main mb-2">
             {view === 'LOGIN' ? 'Welcome Back' : 'Create Account'}
         </h2>
-        <p className="text-slate-400 text-center mb-8">
+        <p className="text-txt-muted text-center mb-8">
             {view === 'LOGIN' ? 'Enter your credentials to access the chat' : 'Join the community today'}
         </p>
 
@@ -99,36 +103,36 @@ const App: React.FC = () => {
         <form onSubmit={view === 'LOGIN' ? handleLogin : handleRegister} className="space-y-4">
           {view === 'REGISTER' && (
              <div className="relative">
-                <UserIcon className="absolute left-3 top-3.5 text-slate-500" size={20} />
+                <UserIcon className="absolute left-3 top-3.5 text-txt-muted" size={20} />
                 <input
                     type="text"
                     placeholder="Display Name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-3 focus:border-primary focus:outline-none"
+                    className="w-full bg-input-bg border border-border-base text-txt-main rounded-lg pl-10 pr-4 py-3 focus:border-primary focus:outline-none"
                     required
                 />
             </div>
           )}
           <div className="relative">
-            <Mail className="absolute left-3 top-3.5 text-slate-500" size={20} />
+            <Mail className="absolute left-3 top-3.5 text-txt-muted" size={20} />
             <input
               type="email"
               placeholder="Email Address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-3 focus:border-primary focus:outline-none"
+              className="w-full bg-input-bg border border-border-base text-txt-main rounded-lg pl-10 pr-4 py-3 focus:border-primary focus:outline-none"
               required
             />
           </div>
           <div className="relative">
-            <Lock className="absolute left-3 top-3.5 text-slate-500" size={20} />
+            <Lock className="absolute left-3 top-3.5 text-txt-muted" size={20} />
             <input
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg pl-10 pr-4 py-3 focus:border-primary focus:outline-none"
+              className="w-full bg-input-bg border border-border-base text-txt-main rounded-lg pl-10 pr-4 py-3 focus:border-primary focus:outline-none"
               required
             />
           </div>
@@ -154,14 +158,14 @@ const App: React.FC = () => {
         
       {/* Helper Section for Test Accounts */}
       {view === 'LOGIN' && (
-          <div className="mt-8 p-4 bg-slate-900/50 rounded-xl border border-slate-800 max-w-md w-full">
-              <h4 className="text-slate-400 text-sm font-semibold mb-2 uppercase tracking-wider">Test Accounts</h4>
+          <div className="mt-8 p-4 bg-paper rounded-xl border border-border-base max-w-md w-full">
+              <h4 className="text-txt-muted text-sm font-semibold mb-2 uppercase tracking-wider">Test Accounts</h4>
               <div className="grid grid-cols-2 gap-2">
                   {TEST_ACCOUNTS.map((acc, i) => (
                       <button 
                         key={i}
                         onClick={() => { setEmail(acc.u); setPassword(acc.p); }}
-                        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 px-3 rounded transition text-left truncate"
+                        className="text-xs bg-hover hover:bg-opacity-80 text-txt-muted py-1.5 px-3 rounded transition text-left truncate"
                       >
                         {acc.u}
                       </button>

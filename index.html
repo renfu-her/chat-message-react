@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,20 +7,67 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
               primary: '#3b82f6',
               secondary: '#64748b',
-              dark: '#0f172a',
-              darker: '#020617',
-              paper: '#1e293b'
+              
+              // Semantic Colors mapped to CSS Variables
+              darker: 'var(--c-darker)',
+              dark: 'var(--c-dark)',
+              paper: 'var(--c-paper)',
+              
+              // Text
+              'txt-main': 'var(--c-text-main)',
+              'txt-muted': 'var(--c-text-muted)',
+              
+              // UI Elements
+              'border-base': 'var(--c-border)',
+              'input-bg': 'var(--c-input)',
+              'hover-bg': 'var(--c-hover)',
+              'msg-received': 'var(--c-msg-received)',
+            },
+            borderColor: {
+                DEFAULT: 'var(--c-border)',
+                base: 'var(--c-border)',
             }
           }
         }
       }
     </script>
     <style>
+      :root {
+        /* Light Mode Palette */
+        --c-darker: #f1f5f9;      /* Slate 100 - App Background */
+        --c-dark: #f8fafc;        /* Slate 50 - Chat Background */
+        --c-paper: #ffffff;       /* White - Sidebar/Cards */
+        --c-input: #ffffff;       /* White - Inputs */
+        
+        --c-text-main: #0f172a;   /* Slate 900 */
+        --c-text-muted: #64748b;  /* Slate 500 */
+        
+        --c-border: #e2e8f0;      /* Slate 200 */
+        --c-hover: #e2e8f0;       /* Slate 200 */
+        --c-msg-received: #ffffff;/* White */
+      }
+
+      html.dark {
+        /* Dark Mode Palette */
+        --c-darker: #020617;      /* Slate 950 */
+        --c-dark: #0f172a;        /* Slate 900 */
+        --c-paper: #1e293b;       /* Slate 800 */
+        --c-input: #0f172a;       /* Slate 900 */
+        
+        --c-text-main: #e2e8f0;   /* Slate 200 */
+        --c-text-muted: #94a3b8;  /* Slate 400 */
+        
+        --c-border: #334155;      /* Slate 700 */
+        --c-hover: #334155;       /* Slate 700 */
+        --c-msg-received: #1e293b;/* Slate 800 */
+      }
+
       /* Custom scrollbar for chat */
       .scrollbar-hide::-webkit-scrollbar {
           display: none;
@@ -33,10 +80,10 @@
         width: 6px;
       }
       .custom-scroll::-webkit-scrollbar-track {
-        background: #1e293b;
+        background: transparent;
       }
       .custom-scroll::-webkit-scrollbar-thumb {
-        background: #475569;
+        background: var(--c-border);
         border-radius: 3px;
       }
     </style>
@@ -51,7 +98,7 @@
 }
 </script>
 </head>
-  <body class="bg-darker text-slate-200 overflow-hidden">
+  <body class="bg-darker text-txt-main overflow-hidden transition-colors duration-300">
     <div id="root"></div>
   </body>
 </html>

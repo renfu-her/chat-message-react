@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, FormEvent } from 'react';
 import { 
   LogOut, Send, Image as ImageIcon, Plus, 
-  Lock, Hash, MoreVertical, X, User as UserIcon, Settings, Menu, MessageSquare, Trash2
+  Lock, Hash, MoreVertical, X, User as UserIcon, Settings, Menu, MessageSquare, Trash2,
+  Sun, Moon
 } from 'lucide-react';
 import { User, Room, Message, AppView } from '../types';
 import { mockBackend, subscribeToSocket } from '../services/mockBackend';
@@ -25,6 +26,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
   const [showProfile, setShowProfile] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar
   const [userListOpen, setUserListOpen] = useState(false); // Mobile user list
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   
   // Private Room Join State
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -46,6 +48,21 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
   useEffect(() => {
     activeRoomIdRef.current = activeRoomId;
   }, [activeRoomId]);
+
+  // Initialize Theme
+  useEffect(() => {
+      const savedTheme = localStorage.getItem('chat_theme') as 'light' | 'dark' | null;
+      const initialTheme = savedTheme || 'dark';
+      setTheme(initialTheme);
+      document.documentElement.className = initialTheme;
+  }, []);
+
+  const toggleTheme = () => {
+      const newTheme = theme === 'dark' ? 'light' : 'dark';
+      setTheme(newTheme);
+      localStorage.setItem('chat_theme', newTheme);
+      document.documentElement.className = newTheme;
+  };
 
   // Initial Data Load & Socket Subscription
   useEffect(() => {
@@ -228,32 +245,32 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 justify-center">
+    <div className="flex h-screen w-full bg-darker justify-center transition-colors duration-300">
       <div className="flex h-full w-full max-w-[1440px] bg-darker overflow-hidden relative shadow-2xl">
       
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 w-full h-14 bg-paper border-b border-slate-700 flex items-center justify-between px-4 z-20">
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-slate-300">
+      <div className="md:hidden fixed top-0 w-full h-14 bg-paper border-b border-border-base flex items-center justify-between px-4 z-20">
+        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-txt-main">
             <Menu size={24} />
         </button>
-        <h1 className="font-bold text-white truncate">
+        <h1 className="font-bold text-txt-main truncate">
             {rooms.find(r => r.id === activeRoomId)?.name || 'Select Room'}
         </h1>
-        <button onClick={() => setUserListOpen(!userListOpen)} className="text-slate-300">
+        <button onClick={() => setUserListOpen(!userListOpen)} className="text-txt-main">
             <UserIcon size={24} />
         </button>
       </div>
 
       {/* LEFT: Room List Sidebar */}
       <aside className={`
-        fixed md:relative z-30 w-72 h-full bg-paper border-r border-slate-700 flex flex-col transition-transform duration-300
+        fixed md:relative z-30 w-72 h-full bg-paper border-r border-border-base flex flex-col transition-transform duration-300
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+        <div className="p-4 border-b border-border-base flex justify-between items-center">
           <h2 className="text-xl font-bold text-primary">Rooms</h2>
           <button 
             onClick={() => setShowCreateRoom(true)}
-            className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full transition"
+            className="p-2 bg-hover hover:bg-opacity-80 rounded-full transition text-txt-main"
           >
             <Plus size={18} />
           </button>
@@ -265,11 +282,11 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
               key={room.id}
               onClick={() => handleJoinRoom(room)}
               className={`w-full p-3 rounded-lg flex items-center justify-between transition group
-                ${activeRoomId === room.id ? 'bg-primary/20 border border-primary/50 text-white' : 'hover:bg-slate-800 text-slate-400'}
+                ${activeRoomId === room.id ? 'bg-primary/20 border border-primary/50 text-txt-main' : 'hover:bg-hover text-txt-muted hover:text-txt-main'}
               `}
             >
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                {room.isPrivate ? <Lock size={16} className="text-amber-500 flex-shrink-0" /> : <Hash size={16} className="text-slate-500 flex-shrink-0" />}
+                {room.isPrivate ? <Lock size={16} className="text-amber-500 flex-shrink-0" /> : <Hash size={16} className="text-txt-muted flex-shrink-0" />}
                 <div className="text-left overflow-hidden">
                     <span className="block font-medium truncate">{room.name}</span>
                     <span className="text-xs opacity-60 truncate block">{room.description}</span>
@@ -284,7 +301,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                         e.stopPropagation();
                         handleDeleteRoom(room.id);
                     }}
-                    className="ml-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    className="ml-2 p-1.5 text-txt-muted hover:text-red-400 hover:bg-red-500/10 rounded-md transition opacity-0 group-hover:opacity-100 focus:opacity-100"
                  >
                     <Trash2 size={16} />
                  </div>
@@ -294,35 +311,44 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
         </div>
 
         {/* Current User footer */}
-        <div className="p-4 border-t border-slate-700 bg-slate-900/50 flex items-center justify-between">
+        <div className="p-4 border-t border-border-base bg-darker/50 flex items-center justify-between">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfile(true)}>
                 <img src={currentUser.avatar} alt="Me" className="w-8 h-8 rounded-full bg-slate-600 object-cover" />
                 <div className="flex flex-col">
-                    <span className="text-sm font-bold text-white">{currentUser.name}</span>
-                    <span className="text-xs text-slate-500">{maskEmail(currentUser.email)}</span>
+                    <span className="text-sm font-bold text-txt-main">{currentUser.name}</span>
+                    <span className="text-xs text-txt-muted">{maskEmail(currentUser.email)}</span>
                 </div>
             </div>
-            <button onClick={onLogout} className="text-slate-500 hover:text-red-400">
-                <LogOut size={18} />
-            </button>
+            <div className="flex items-center gap-1">
+                <button 
+                    onClick={toggleTheme}
+                    className="p-2 text-txt-muted hover:text-primary rounded-full hover:bg-hover transition"
+                    title="Toggle Theme"
+                >
+                    {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
+                <button onClick={onLogout} className="p-2 text-txt-muted hover:text-red-400 rounded-full hover:bg-hover transition" title="Logout">
+                    <LogOut size={18} />
+                </button>
+            </div>
         </div>
       </aside>
 
       {/* CENTER: Chat Area */}
-      <main className="flex-1 flex flex-col h-full relative pt-14 md:pt-0">
+      <main className="flex-1 flex flex-col h-full relative pt-14 md:pt-0 bg-dark">
         
         {!activeRoomId ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-darker p-8 text-center">
-            <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                <MessageSquare size={40} className="text-slate-600" />
+          <div className="flex-1 flex flex-col items-center justify-center text-txt-muted bg-dark p-8 text-center">
+            <div className="w-20 h-20 bg-paper rounded-full flex items-center justify-center mb-6 shadow-sm">
+                <MessageSquare size={40} className="text-txt-muted" />
             </div>
-            <h3 className="text-2xl font-bold text-slate-300 mb-2">Welcome, {currentUser.name}!</h3>
+            <h3 className="text-2xl font-bold text-txt-main mb-2">Welcome, {currentUser.name}!</h3>
             <p className="max-w-md">Please select a room from the sidebar to start chatting. Private rooms require a password to enter.</p>
           </div>
         ) : (
           <>
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll bg-darker">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll bg-dark">
               {messages.map((msg, idx) => {
                 const isMe = msg.senderId === currentUser.id;
                 return (
@@ -334,8 +360,8 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                     />
                     <div className={`max-w-[75%] md:max-w-[60%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs text-slate-400">{msg.senderName}</span>
-                        <span className="text-[10px] text-slate-600">
+                        <span className="text-xs text-txt-muted">{msg.senderName}</span>
+                        <span className="text-[10px] text-txt-muted opacity-80">
                             {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                       </div>
@@ -343,17 +369,17 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                       {msg.type === 'text' ? (
                         <div className={`
                             px-4 py-2 rounded-2xl text-sm leading-relaxed
-                            ${isMe ? 'bg-primary text-white rounded-tr-sm' : 'bg-slate-800 text-slate-200 rounded-tl-sm'}
+                            ${isMe ? 'bg-primary text-white rounded-tr-sm' : 'bg-msg-received text-txt-main border border-border-base rounded-tl-sm'}
                         `}>
                             {msg.content}
                         </div>
                       ) : (
                         <div className={`
-                            p-1 rounded-lg overflow-hidden border border-slate-700
-                            ${isMe ? 'bg-primary/20' : 'bg-slate-800'}
+                            p-1 rounded-lg overflow-hidden border border-border-base
+                            ${isMe ? 'bg-primary/20' : 'bg-paper'}
                         `}>
                             <img src={msg.content} alt="Shared" className="max-w-full rounded h-auto max-h-64 object-contain" />
-                            <div className="text-[10px] text-center w-full text-slate-500 mt-1 uppercase tracking-wider">WEBP Generated</div>
+                            <div className="text-[10px] text-center w-full text-txt-muted mt-1 uppercase tracking-wider">WEBP Generated</div>
                         </div>
                       )}
                     </div>
@@ -364,7 +390,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-paper border-t border-slate-700">
+            <div className="p-4 bg-paper border-t border-border-base">
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                     <div className="relative">
                         <input 
@@ -377,7 +403,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                         <button 
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="p-3 text-slate-400 hover:text-primary hover:bg-slate-700 rounded-full transition"
+                            className="p-3 text-txt-muted hover:text-primary hover:bg-hover rounded-full transition"
                         >
                             <ImageIcon size={20} />
                         </button>
@@ -387,7 +413,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                         value={inputMessage}
                         onChange={(e) => setInputMessage(e.target.value)}
                         placeholder={`Message #${rooms.find(r => r.id === activeRoomId)?.name || '...'}`}
-                        className="flex-1 bg-slate-900 border border-slate-700 text-white rounded-full px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition placeholder-slate-500"
+                        className="flex-1 bg-input-bg border border-border-base text-txt-main rounded-full px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition placeholder-txt-muted"
                     />
                     <button 
                         type="submit"
@@ -404,18 +430,18 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
 
       {/* RIGHT: User List Sidebar (Collapsible) */}
       <aside className={`
-        fixed md:relative z-30 right-0 w-64 h-full bg-paper border-l border-slate-700 flex flex-col transition-transform duration-300
+        fixed md:relative z-30 right-0 w-64 h-full bg-paper border-l border-border-base flex flex-col transition-transform duration-300
         ${userListOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
-         <div className="p-4 border-b border-slate-700 flex justify-between items-center">
-            <h2 className="font-bold text-slate-200">Online Users</h2>
-            <button className="md:hidden text-slate-400" onClick={() => setUserListOpen(false)}>
+         <div className="p-4 border-b border-border-base flex justify-between items-center">
+            <h2 className="font-bold text-txt-main">Online Users</h2>
+            <button className="md:hidden text-txt-muted" onClick={() => setUserListOpen(false)}>
                 <X size={18} />
             </button>
          </div>
          <div className="flex-1 overflow-y-auto custom-scroll p-2">
              {users.map(u => (
-                 <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-slate-800 rounded-lg transition opacity-90 hover:opacity-100">
+                 <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-hover rounded-lg transition opacity-90 hover:opacity-100">
                      <div className="relative">
                          <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full object-cover bg-slate-700" />
                          {u.isOnline && (
@@ -423,8 +449,8 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                          )}
                      </div>
                      <div className="flex flex-col overflow-hidden">
-                         <span className="text-sm font-medium text-slate-200 truncate">{u.name}</span>
-                         <span className="text-xs text-slate-500 truncate">{maskEmail(u.email)}</span>
+                         <span className="text-sm font-medium text-txt-main truncate">{u.name}</span>
+                         <span className="text-xs text-txt-muted truncate">{maskEmail(u.email)}</span>
                      </div>
                  </div>
              ))}
@@ -442,20 +468,20 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
       {/* Create Room Modal */}
       {showCreateRoom && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-            <div className="bg-paper border border-slate-700 p-6 rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="bg-paper border border-border-base p-6 rounded-2xl w-full max-w-md shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-white">Create New Room</h3>
-                    <button onClick={() => setShowCreateRoom(false)} className="text-slate-400 hover:text-white">
+                    <h3 className="text-xl font-bold text-txt-main">Create New Room</h3>
+                    <button onClick={() => setShowCreateRoom(false)} className="text-txt-muted hover:text-txt-main">
                         <X size={20} />
                     </button>
                 </div>
                 <form onSubmit={createRoom} className="space-y-4">
                     <div>
-                        <label className="block text-sm text-slate-400 mb-1">Room Name</label>
+                        <label className="block text-sm text-txt-muted mb-1">Room Name</label>
                         <input 
                             required
                             type="text" 
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                            className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none"
                             value={newRoomName}
                             onChange={e => setNewRoomName(e.target.value)}
                         />
@@ -466,17 +492,17 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                             id="isPrivate"
                             checked={isNewRoomPrivate}
                             onChange={e => setIsNewRoomPrivate(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-primary focus:ring-offset-0"
+                            className="w-4 h-4 rounded border-border-base bg-input-bg text-primary focus:ring-offset-0"
                         />
-                        <label htmlFor="isPrivate" className="text-sm text-slate-300">Private Room (Requires Password)</label>
+                        <label htmlFor="isPrivate" className="text-sm text-txt-main">Private Room (Requires Password)</label>
                     </div>
                     {isNewRoomPrivate && (
                          <div>
-                            <label className="block text-sm text-slate-400 mb-1">Room Password</label>
+                            <label className="block text-sm text-txt-muted mb-1">Room Password</label>
                             <input 
                                 required={isNewRoomPrivate}
                                 type="password" 
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                                className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none"
                                 value={newRoomPassword}
                                 onChange={e => setNewRoomPassword(e.target.value)}
                             />
@@ -493,32 +519,32 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
       {/* Join Private Room Modal */}
       {showPasswordModal && pendingRoom && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-          <div className="bg-paper border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+          <div className="bg-paper border border-border-base p-6 rounded-2xl w-full max-w-sm shadow-2xl">
              <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-2">
                     <Lock className="text-amber-500" size={24} />
-                    <h3 className="text-xl font-bold text-white">Private Room</h3>
+                    <h3 className="text-xl font-bold text-txt-main">Private Room</h3>
                 </div>
-                <button onClick={closePasswordModal} className="text-slate-400 hover:text-white">
+                <button onClick={closePasswordModal} className="text-txt-muted hover:text-txt-main">
                     <X size={20} />
                 </button>
             </div>
-            <p className="text-slate-400 mb-4">
-                Enter password to join <span className="text-white font-medium">{pendingRoom.name}</span>
+            <p className="text-txt-muted mb-4">
+                Enter password to join <span className="text-txt-main font-medium">{pendingRoom.name}</span>
             </p>
             <form onSubmit={handleJoinPrivateSubmit}>
                 <input 
                     autoFocus
                     type="password"
                     placeholder="Room Password"
-                    className={`w-full bg-slate-900 border ${joinError ? 'border-red-500' : 'border-slate-700'} rounded-lg p-3 text-white focus:border-primary focus:outline-none mb-2`}
+                    className={`w-full bg-input-bg border ${joinError ? 'border-red-500' : 'border-border-base'} rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none mb-2`}
                     value={joinPassword}
                     onChange={e => { setJoinPassword(e.target.value); setJoinError(''); }}
                 />
                 {joinError && <p className="text-red-400 text-xs mb-4">{joinError}</p>}
                 
                 <div className="flex gap-3 mt-4">
-                    <button type="button" onClick={closePasswordModal} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-medium transition">
+                    <button type="button" onClick={closePasswordModal} className="flex-1 py-2 bg-hover hover:bg-opacity-80 rounded-lg text-txt-main font-medium transition">
                         Cancel
                     </button>
                     <button type="submit" className="flex-1 py-2 bg-primary hover:bg-blue-600 rounded-lg text-white font-bold transition">
@@ -571,11 +597,11 @@ const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = ({ user,
     };
 
     return (
-        <div className="bg-paper border border-slate-700 p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
-             <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <div className="bg-paper border border-border-base p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
+             <button onClick={onClose} className="absolute top-4 right-4 text-txt-muted hover:text-txt-main">
                 <X size={20} />
             </button>
-            <h3 className="text-xl font-bold text-white mb-6">Edit Profile</h3>
+            <h3 className="text-xl font-bold text-txt-main mb-6">Edit Profile</h3>
             
             <form onSubmit={handleSave} className="space-y-4">
                 <div className="flex flex-col items-center mb-4">
@@ -586,28 +612,28 @@ const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = ({ user,
                         </div>
                         <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleAvatarUpload} />
                     </div>
-                    <span className="text-xs text-slate-400">Click to change avatar (WebP)</span>
+                    <span className="text-xs text-txt-muted">Click to change avatar (WebP)</span>
                 </div>
 
                 <div>
-                    <label className="block text-sm text-slate-400 mb-1">Display Name</label>
+                    <label className="block text-sm text-txt-muted mb-1">Display Name</label>
                     <input 
                         required type="text" value={name} onChange={e => setName(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                        className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none"
                     />
                 </div>
                  <div>
-                    <label className="block text-sm text-slate-400 mb-1">Email (Read Only)</label>
+                    <label className="block text-sm text-txt-muted mb-1">Email (Read Only)</label>
                     <input 
                         readOnly type="email" value={user.email}
-                        className="w-full bg-slate-900/50 border border-slate-800 rounded-lg p-3 text-slate-500 cursor-not-allowed"
+                        className="w-full bg-darker border border-border-base rounded-lg p-3 text-txt-muted cursor-not-allowed"
                     />
                 </div>
                  <div>
-                    <label className="block text-sm text-slate-400 mb-1">Password</label>
+                    <label className="block text-sm text-txt-muted mb-1">Password</label>
                     <input 
                         required type="text" value={password} onChange={e => setPassword(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-primary focus:outline-none"
+                        className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none"
                     />
                 </div>
                 <button type="submit" className="w-full py-3 bg-primary hover:bg-blue-600 rounded-lg font-bold text-white transition mt-4">
