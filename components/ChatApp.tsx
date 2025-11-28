@@ -11,9 +11,10 @@ import { convertImageToWebP } from '../services/imageUtils';
 interface ChatAppProps {
   currentUser: User;
   onLogout: () => void;
+  onUserUpdate: (user: User) => void;
 }
 
-const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
+const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }) => {
   // State
   const [rooms, setRooms] = useState<Room[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -73,8 +74,6 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
       ]);
       setRooms(loadedRooms);
       setUsers(loadedUsers);
-      
-      // Removed auto-join logic to show "Select a room" state initially
     };
     loadData();
 
@@ -106,9 +105,16 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
           break;
         case 'USER_UPDATE':
           setUsers(prev => prev.map(u => u.id === event.payload.id ? event.payload : u));
+          if (event.payload.id === currentUser.id) {
+            onUserUpdate(event.payload);
+          }
           break;
         case 'USER_JOINED':
-          setUsers(prev => [...prev, event.payload]);
+          setUsers(prev => {
+            // Check for duplicates before adding
+            if (prev.some(u => u.id === event.payload.id)) return prev;
+            return [...prev, event.payload];
+          });
           break;
         case 'USER_LEFT':
           setUsers(prev => prev.map(u => u.id === event.payload.userId ? { ...u, isOnline: false } : u));
@@ -118,7 +124,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
 
     return () => { unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once
+  }, [currentUser.id]); // Add currentUser.id to deps just in case, though usually stable
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -361,7 +367,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
                     <div className={`max-w-[75%] md:max-w-[60%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs text-txt-muted">{msg.senderName}</span>
-                        <span className="text-[10px] text-txt-muted opacity-80">
+                        <span className="text-xs text-txt-muted opacity-80">
                             {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                       </div>
@@ -572,12 +578,19 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout }) => {
 const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = ({ user, onClose }) => {
     const [name, setName] = useState(user.name);
     const [avatar, setAvatar] = useState(user.avatar);
-    const [password, setPassword] = useState(user.password || '');
+    // Initialize password as empty. User must type to change it.
+    const [password, setPassword] = useState('');
     
     const handleSave = async (e: FormEvent) => {
         e.preventDefault();
         try {
-            await mockBackend.updateProfile(user.id, { name, avatar, password });
+            // Prepare updates. Only include password if user typed something.
+            const updates: Partial<User> = { name, avatar };
+            if (password.trim()) {
+                updates.password = password;
+            }
+
+            await mockBackend.updateProfile(user.id, updates);
             onClose();
         } catch (error) {
             alert('Failed to update profile');
@@ -630,9 +643,12 @@ const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = ({ user,
                     />
                 </div>
                  <div>
-                    <label className="block text-sm text-txt-muted mb-1">Password</label>
+                    <label className="block text-sm text-txt-muted mb-1">New Password</label>
                     <input 
-                        required type="text" value={password} onChange={e => setPassword(e.target.value)}
+                        type="password" 
+                        placeholder="Leave blank to keep unchanged"
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)}
                         className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none"
                     />
                 </div>

@@ -72,10 +72,16 @@ const App: React.FC = () => {
     localStorage.removeItem('chat_current_user');
     setEmail('');
     setPassword('');
+    setView('LOGIN'); // Ensure we go back to Login screen
+  };
+
+  const handleUserUpdate = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('chat_current_user', JSON.stringify(updatedUser));
   };
 
   if (user) {
-    return <ChatApp currentUser={user} onLogout={handleLogout} />;
+    return <ChatApp currentUser={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />;
   }
 
   return (

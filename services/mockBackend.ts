@@ -69,7 +69,8 @@ export const mockBackend = {
       name,
       email,
       password,
-      avatar: `https://picsum.photos/seed/${Date.now()}/200`,
+      // Use simple initials avatar for registration
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
       isOnline: true
     };
     
