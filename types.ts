@@ -6,6 +6,8 @@ export interface User {
   avatar: string;
   isOnline: boolean;
   bio?: string;
+  favorites: string[]; // List of User IDs
+  blocked: string[];   // List of User IDs
 }
 
 export interface Room {

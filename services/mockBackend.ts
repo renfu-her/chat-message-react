@@ -2,11 +2,11 @@ import { User, Room, Message } from '../types';
 
 // Initial Mock Data
 const INITIAL_USERS: User[] = [
-  { id: 'u1', name: 'User One', email: 'user1@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User1', isOnline: false },
-  { id: 'u2', name: 'User Two', email: 'user2@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User2', isOnline: false },
-  { id: 'u3', name: 'User Three', email: 'user3@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User3', isOnline: false },
-  { id: 'u4', name: 'User Four', email: 'user4@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User4', isOnline: false },
-  { id: 'u5', name: 'User Five', email: 'user5@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User5', isOnline: false },
+  { id: 'u1', name: 'User One', email: 'user1@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User1', isOnline: false, favorites: [], blocked: [] },
+  { id: 'u2', name: 'User Two', email: 'user2@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User2', isOnline: false, favorites: [], blocked: [] },
+  { id: 'u3', name: 'User Three', email: 'user3@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User3', isOnline: false, favorites: [], blocked: [] },
+  { id: 'u4', name: 'User Four', email: 'user4@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User4', isOnline: false, favorites: [], blocked: [] },
+  { id: 'u5', name: 'User Five', email: 'user5@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User5', isOnline: false, favorites: [], blocked: [] },
 ];
 
 const INITIAL_ROOMS: Room[] = [
@@ -70,7 +70,9 @@ export const mockBackend = {
       email,
       password,
       avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
-      isOnline: true
+      isOnline: true,
+      favorites: [],
+      blocked: []
     };
     
     const updatedUsers = [...users, newUser];
@@ -99,6 +101,77 @@ export const mockBackend = {
         }
         return u;
     });
+    setStorage('chat_users', newUsers);
+    if (updatedUser) broadcast('USER_UPDATE', updatedUser);
+    return updatedUser;
+  },
+
+  // Relationship Management
+  toggleFavorite: async (userId: string, targetId: string) => {
+    const users = getStorage<User[]>('chat_users', INITIAL_USERS);
+    let updatedUser: User | undefined;
+    
+    const newUsers = users.map(u => {
+        if (u.id === userId) {
+            const isFav = u.favorites?.includes(targetId);
+            const newFavs = isFav 
+                ? u.favorites.filter(id => id !== targetId)
+                : [...(u.favorites || []), targetId];
+            
+            updatedUser = { ...u, favorites: newFavs };
+            return updatedUser;
+        }
+        return u;
+    });
+
+    setStorage('chat_users', newUsers);
+    if (updatedUser) broadcast('USER_UPDATE', updatedUser);
+    return updatedUser;
+  },
+
+  blockUser: async (userId: string, targetId: string) => {
+    const users = getStorage<User[]>('chat_users', INITIAL_USERS);
+    let updatedUser: User | undefined;
+
+    const newUsers = users.map(u => {
+        if (u.id === userId) {
+            // Remove from favorites if exists
+            const newFavs = (u.favorites || []).filter(id => id !== targetId);
+            // Add to blocked if not exists
+            const newBlocked = u.blocked?.includes(targetId) 
+                ? u.blocked 
+                : [...(u.blocked || []), targetId];
+
+            updatedUser = { ...u, favorites: newFavs, blocked: newBlocked };
+            return updatedUser;
+        }
+        return u;
+    });
+
+    setStorage('chat_users', newUsers);
+    if (updatedUser) broadcast('USER_UPDATE', updatedUser);
+    return updatedUser;
+  },
+
+  unblockUser: async (userId: string, targetId: string) => {
+    const users = getStorage<User[]>('chat_users', INITIAL_USERS);
+    let updatedUser: User | undefined;
+
+    const newUsers = users.map(u => {
+        if (u.id === userId) {
+            // Remove from blocked
+            const newBlocked = (u.blocked || []).filter(id => id !== targetId);
+            // REQUIREMENT: Add back to Favorites upon unblocking
+            const newFavs = u.favorites?.includes(targetId)
+                ? u.favorites
+                : [...(u.favorites || []), targetId];
+
+            updatedUser = { ...u, blocked: newBlocked, favorites: newFavs };
+            return updatedUser;
+        }
+        return u;
+    });
+
     setStorage('chat_users', newUsers);
     if (updatedUser) broadcast('USER_UPDATE', updatedUser);
     return updatedUser;
@@ -133,6 +206,33 @@ export const mockBackend = {
   getMessages: async (roomId: string): Promise<Message[]> => {
     const allMessages = getStorage<Message[]>('chat_messages', []);
     return allMessages.filter(m => m.roomId === roomId);
+  },
+
+  // Search
+  searchGlobalMessages: async (query: string): Promise<(Message & { roomName: string })[]> => {
+    const allMessages = getStorage<Message[]>('chat_messages', []);
+    const rooms = getStorage<Room[]>('chat_rooms', INITIAL_ROOMS);
+    
+    if (!query.trim()) return [];
+
+    const lowerQuery = query.toLowerCase();
+    
+    // Filter messages that match content
+    const matchingMessages = allMessages.filter(m => 
+        m.type === 'text' && m.content.toLowerCase().includes(lowerQuery)
+    );
+
+    // Sort by timestamp desc
+    matchingMessages.sort((a, b) => b.timestamp - a.timestamp);
+
+    // Attach room names
+    return matchingMessages.map(m => {
+        const room = rooms.find(r => r.id === m.roomId);
+        return {
+            ...m,
+            roomName: room ? room.name : 'Unknown Room'
+        };
+    });
   },
 
   sendMessage: async (message: Omit<Message, 'id' | 'timestamp'>): Promise<Message> => {
