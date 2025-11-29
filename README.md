@@ -30,7 +30,7 @@ This project was architected and developed using **Google AI Studio** and **Gemi
 -   **Algorithm Implementation**: Complex logic such as the **Client-side WebP Conversion** service and the **Math CAPTCHA** generator were created by Gemini.
 -   **Mock Backend**: The `mockBackend` service, which simulates WebSocket events (`USER_JOINED`, `NEW_MESSAGE`) and LocalStorage persistence, was designed by AI to replicate a real-world full-stack environment without requiring a server.
 
-**🔗 Project Platform:** [Google AI Studio](https://aistudio.google.com/)
+**🔗 Project Platform:** [Google AI Studio Project]([請在此處貼上您目前的專案網址])
 
 ## 🛠️ Tech Stack
 
