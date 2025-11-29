@@ -22,6 +22,10 @@ A modern, responsive chat application built with React, TypeScript, and Tailwind
 - **Login CAPTCHA**: A dynamic arithmetic challenge (+, -, *, /) is required during login to prevent automated bot access.
 - **Auth Simulation**: Secure password handling and session persistence using local storage.
 
+### 5. Feedback System
+- **Reporting**: Users can report bugs, report other users, or provide general feedback directly through the interface.
+- **Direct Integration**: The feedback form automatically generates an email to `renfu.her@gmail.com` with necessary user context (ID, Name, Email) pre-filled for efficient support.
+
 ## 🤖 Powered by Google AI Studio
 
 This project was architected and developed using **Google AI Studio** and **Gemini models**.
@@ -54,6 +58,11 @@ This project was architected and developed using **Google AI Studio** and **Gemi
 3.  **Private Rooms**:
     -   When creating a room, check "Private Room" to set a password.
     -   These rooms are marked with a Lock icon 🔒.
+
+4.  **Feedback & Support**:
+    -   Click the **Warning Icon** (⚠️) in the sidebar footer to open the feedback menu.
+    -   Select the type of report (Bug, User Report, Feedback) and describe the issue.
+    -   Click "Create Email" to open your mail client.
 
 ## 🧪 Test Accounts
 

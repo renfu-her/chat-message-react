@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, FormEvent } from 'react';
 import { 
   LogOut, Send, Image as ImageIcon, Plus, 
   Lock, Hash, MoreVertical, X, User as UserIcon, Settings, Menu, MessageSquare, Trash2,
-  Sun, Moon
+  Sun, Moon, MessageSquareWarning
 } from 'lucide-react';
 import { User, Room, Message, AppView } from '../types';
 import { mockBackend, subscribeToSocket } from '../services/mockBackend';
@@ -25,6 +25,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
   // UI State
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar
   const [userListOpen, setUserListOpen] = useState(false); // Mobile user list
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -311,7 +312,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
 
         {/* Current User footer */}
         <div className="p-4 border-t border-border-base bg-darker/50 flex items-center justify-between">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfile(true)}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfile(true)} title="Edit Profile">
                 <img src={currentUser.avatar} alt="Me" className="w-8 h-8 rounded-full bg-slate-600 object-cover" />
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-txt-main">{currentUser.name}</span>
@@ -320,12 +321,24 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
             </div>
             <div className="flex items-center gap-1">
                 <button 
+                    onClick={() => setShowFeedback(true)}
+                    className="p-2 text-txt-muted hover:text-primary rounded-full hover:bg-hover transition"
+                    title="Feedback & Report"
+                >
+                    <MessageSquareWarning size={18} />
+                </button>
+                <button 
                     onClick={toggleTheme}
                     className="p-2 text-txt-muted hover:text-primary rounded-full hover:bg-hover transition"
+                    title="Toggle Theme"
                 >
                     {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
-                <button onClick={onLogout} className="p-2 text-txt-muted hover:text-red-400 rounded-full hover:bg-hover transition">
+                <button 
+                    onClick={onLogout} 
+                    className="p-2 text-txt-muted hover:text-red-400 rounded-full hover:bg-hover transition"
+                    title="Logout"
+                >
                     <LogOut size={18} />
                 </button>
             </div>
@@ -553,6 +566,13 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
         </div>
       )}
 
+      {/* Feedback Modal */}
+      {showFeedback && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+            <FeedbackModal user={currentUser} onClose={() => setShowFeedback(false)} />
+        </div>
+      )}
+
       </div>
     </div>
   );
@@ -640,5 +660,76 @@ const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = ({ user,
         </div>
     );
 }
+
+// Feedback Modal Sub-component
+const FeedbackModal: React.FC<{ user: User, onClose: () => void }> = ({ user, onClose }) => {
+    const [type, setType] = useState('General Feedback');
+    const [content, setContent] = useState('');
+
+    const handleSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        if (!content.trim()) return;
+
+        // Construct Mailto Link
+        const recipient = 'renfu.her@gmail.com';
+        const subject = `[${type}] Feedback from ${user.name}`;
+        const body = `User: ${user.name}\nEmail: ${user.email}\nUser ID: ${user.id}\n\n----- ${type} -----\n\n${content}`;
+        
+        const mailtoLink = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        
+        // Open default mail client
+        window.open(mailtoLink, '_blank');
+        
+        // Optional: Show local confirmation
+        alert("Your email client has been opened to send the feedback.");
+        onClose();
+    };
+
+    return (
+        <div className="bg-paper border border-border-base p-6 rounded-2xl w-full max-w-md shadow-2xl relative">
+            <button onClick={onClose} className="absolute top-4 right-4 text-txt-muted hover:text-txt-main">
+                <X size={20} />
+            </button>
+            <h3 className="text-xl font-bold text-txt-main mb-6 flex items-center gap-2">
+                <MessageSquareWarning size={24} className="text-primary" />
+                Submit Feedback
+            </h3>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm text-txt-muted mb-1">Feedback Type</label>
+                    <select 
+                        value={type}
+                        onChange={(e) => setType(e.target.value)}
+                        className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none"
+                    >
+                        <option value="General Feedback">General Feedback / Usage</option>
+                        <option value="Bug Report">Report a Bug / Issue</option>
+                        <option value="User Report">Report a User</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-sm text-txt-muted mb-1">Details</label>
+                    <textarea 
+                        required
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        placeholder="Please describe your issue, feedback, or the user you wish to report..."
+                        className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none min-h-[120px]"
+                    />
+                </div>
+
+                <div className="bg-primary/10 p-3 rounded-lg text-xs text-txt-muted border border-primary/20">
+                    Submitting this form will open your default email client to send the report to <strong>renfu.her@gmail.com</strong>.
+                </div>
+
+                <button type="submit" className="w-full py-3 bg-primary hover:bg-blue-600 rounded-lg font-bold text-white transition">
+                    Create Email
+                </button>
+            </form>
+        </div>
+    );
+};
 
 export default ChatApp;
