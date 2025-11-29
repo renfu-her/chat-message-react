@@ -932,7 +932,7 @@ const BlockedList: React.FC<{ user: User, allUsers: User[] }> = ({ user, allUser
 
     const handleUnblock = async (targetId: string, name: string) => {
         await mockBackend.unblockUser(user.id, targetId);
-        alert(`${name} has been unblocked and added back to My Favorites.`);
+        alert(`${name} has been unblocked.`);
     };
 
     if (blockedUsers.length === 0) {
@@ -955,7 +955,6 @@ const BlockedList: React.FC<{ user: User, allUsers: User[] }> = ({ user, allUser
                     </button>
                 </div>
             ))}
-             <p className="text-xs text-txt-muted mt-2 text-center">Unblocking a user adds them back to your favorites.</p>
         </div>
     );
 };

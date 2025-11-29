@@ -161,12 +161,11 @@ export const mockBackend = {
         if (u.id === userId) {
             // Remove from blocked
             const newBlocked = (u.blocked || []).filter(id => id !== targetId);
-            // REQUIREMENT: Add back to Favorites upon unblocking
-            const newFavs = u.favorites?.includes(targetId)
-                ? u.favorites
-                : [...(u.favorites || []), targetId];
-
-            updatedUser = { ...u, blocked: newBlocked, favorites: newFavs };
+            
+            // REQUIREMENT CHANGE: Do not automatically add back to favorites.
+            // Just unblock them. They become a regular member.
+            
+            updatedUser = { ...u, blocked: newBlocked };
             return updatedUser;
         }
         return u;
