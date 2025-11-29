@@ -2,17 +2,17 @@ import { User, Room, Message } from '../types';
 
 // Initial Mock Data
 const INITIAL_USERS: User[] = [
-  { id: 'u1', name: 'Alice Test', email: 'user1@test.com', password: 'password123', avatar: 'https://picsum.photos/seed/u1/200', isOnline: false, bio: 'Love coding!' },
-  { id: 'u2', name: 'Bob Test', email: 'user2@test.com', password: 'password123', avatar: 'https://picsum.photos/seed/u2/200', isOnline: false, bio: 'Python enthusiast' },
-  { id: 'u3', name: 'Charlie Test', email: 'user3@test.com', password: 'password123', avatar: 'https://picsum.photos/seed/u3/200', isOnline: false },
-  { id: 'u4', name: 'Dave Test', email: 'user4@test.com', password: 'password123', avatar: 'https://picsum.photos/seed/u4/200', isOnline: false },
-  { id: 'u5', name: 'Eve Test', email: 'user5@test.com', password: 'password123', avatar: 'https://picsum.photos/seed/u5/200', isOnline: false },
+  { id: 'u1', name: 'User One', email: 'user1@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User1', isOnline: false },
+  { id: 'u2', name: 'User Two', email: 'user2@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User2', isOnline: false },
+  { id: 'u3', name: 'User Three', email: 'user3@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User3', isOnline: false },
+  { id: 'u4', name: 'User Four', email: 'user4@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User4', isOnline: false },
+  { id: 'u5', name: 'User Five', email: 'user5@test.com', password: 'password123', avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=User5', isOnline: false },
 ];
 
 const INITIAL_ROOMS: Room[] = [
-  { id: 'r1', name: 'General Lobby', isPrivate: false, createdBy: 'system', description: 'Welcome everyone!' },
-  { id: 'r2', name: 'Python Devs', isPrivate: false, createdBy: 'system', description: 'Talk about FastAPI' },
-  { id: 'r3', name: 'Secret Club', isPrivate: true, password: '123', createdBy: 'u1', description: 'Shhh... Password is 123' },
+  { id: 'r1', name: 'General Chat', isPrivate: false, createdBy: 'system', description: 'Open to everyone' },
+  { id: 'r2', name: 'Developers', isPrivate: true, password: '123', createdBy: 'u1', description: 'Password is 123' },
+  { id: 'r3', name: 'Random', isPrivate: false, createdBy: 'u2', description: 'Talk about anything' },
 ];
 
 // Helper to get data from local storage or init
@@ -69,7 +69,6 @@ export const mockBackend = {
       name,
       email,
       password,
-      // Use simple initials avatar for registration
       avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`,
       isOnline: true
     };

@@ -2,7 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Only used for auth checks, usually not stored in frontend state like this in real app
+  password?: string; // Only used for auth checks
   avatar: string;
   isOnline: boolean;
   bio?: string;
@@ -13,7 +13,7 @@ export interface Room {
   name: string;
   isPrivate: boolean;
   password?: string;
-  createdBy: string; // User ID
+  createdBy: string;
   description?: string;
 }
 

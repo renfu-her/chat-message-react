@@ -2,16 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ChatApp from './components/ChatApp';
 import { User } from './types';
 import { mockBackend } from './services/mockBackend';
-import { MessageSquare, Mail, Lock, User as UserIcon } from 'lucide-react';
-
-// Pre-defined test accounts for the "Tip" section
-const TEST_ACCOUNTS = [
-    { u: 'user1@test.com', p: 'password123' },
-    { u: 'user2@test.com', p: 'password123' },
-    { u: 'user3@test.com', p: 'password123' },
-    { u: 'user4@test.com', p: 'password123' },
-    { u: 'user5@test.com', p: 'password123' },
-];
+import { MessageSquare, Mail, Lock, User as UserIcon, RefreshCw } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -21,6 +12,48 @@ const App: React.FC = () => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Captcha State
+  const [captcha, setCaptcha] = useState({ num1: 0, num2: 0, operator: '+' });
+  const [captchaInput, setCaptchaInput] = useState('');
+
+  const generateCaptcha = () => {
+    const operators = ['+', '-', '*', '/'];
+    const operator = operators[Math.floor(Math.random() * operators.length)];
+    let num1 = 0;
+    let num2 = 0;
+
+    switch (operator) {
+        case '+':
+            num1 = Math.floor(Math.random() * 20) + 1;
+            num2 = Math.floor(Math.random() * 20) + 1;
+            break;
+        case '-':
+            num1 = Math.floor(Math.random() * 20) + 1;
+            num2 = Math.floor(Math.random() * 20) + 1;
+            // Ensure positive result for better UX
+            if (num1 < num2) {
+                const temp = num1;
+                num1 = num2;
+                num2 = temp;
+            }
+            break;
+        case '*':
+            // Keep numbers small for multiplication
+            num1 = Math.floor(Math.random() * 9) + 1;
+            num2 = Math.floor(Math.random() * 9) + 1;
+            break;
+        case '/':
+            // Ensure integer division result
+            num2 = Math.floor(Math.random() * 9) + 1; // divisor 1-9
+            const result = Math.floor(Math.random() * 9) + 1; // quotient 1-9
+            num1 = num2 * result; // dividend
+            break;
+    }
+
+    setCaptcha({ num1, num2, operator });
+    setCaptchaInput('');
+  };
 
   // Check for persistent session simulation
   useEffect(() => {
@@ -32,10 +65,38 @@ const App: React.FC = () => {
     // Set initial theme on body if stored
     const storedTheme = localStorage.getItem('chat_theme') || 'dark';
     document.documentElement.className = storedTheme;
+    
+    generateCaptcha();
   }, []);
+
+  // Regenerate captcha when switching views
+  useEffect(() => {
+    generateCaptcha();
+    setError('');
+  }, [view]);
+
+  const calculateExpectedResult = () => {
+      const { num1, num2, operator } = captcha;
+      switch (operator) {
+          case '+': return num1 + num2;
+          case '-': return num1 - num2;
+          case '*': return num1 * num2;
+          case '/': return num1 / num2;
+          default: return 0;
+      }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Captcha Validation
+    const expected = calculateExpectedResult();
+    if (parseInt(captchaInput) !== expected) {
+        setError('Incorrect verification code');
+        generateCaptcha();
+        return;
+    }
+
     setLoading(true);
     setError('');
     try {
@@ -44,6 +105,7 @@ const App: React.FC = () => {
       localStorage.setItem('chat_current_user', JSON.stringify(loggedInUser));
     } catch (err: any) {
       setError(err.message || 'Login failed');
+      generateCaptcha();
     } finally {
       setLoading(false);
     }
@@ -72,7 +134,9 @@ const App: React.FC = () => {
     localStorage.removeItem('chat_current_user');
     setEmail('');
     setPassword('');
-    setView('LOGIN'); // Ensure we go back to Login screen
+    setCaptchaInput('');
+    generateCaptcha();
+    setView('LOGIN');
   };
 
   const handleUserUpdate = (updatedUser: User) => {
@@ -85,7 +149,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-darker flex flex-col items-center justify-center p-4 transition-colors duration-300">
+    <div className="min-h-screen bg-darker flex items-center justify-center p-4 transition-colors duration-300">
       <div className="w-full max-w-md bg-paper border border-border-base p-8 rounded-2xl shadow-2xl">
         <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center">
@@ -94,10 +158,10 @@ const App: React.FC = () => {
         </div>
         
         <h2 className="text-3xl font-bold text-center text-txt-main mb-2">
-            {view === 'LOGIN' ? 'Welcome Back' : 'Create Account'}
+            {view === 'LOGIN' ? 'Welcome Back' : 'Join Us'}
         </h2>
         <p className="text-txt-muted text-center mb-8">
-            {view === 'LOGIN' ? 'Enter your credentials to access the chat' : 'Join the community today'}
+            {view === 'LOGIN' ? 'Sign in to continue chatting' : 'Create an account to get started'}
         </p>
 
         {error && (
@@ -143,6 +207,30 @@ const App: React.FC = () => {
             />
           </div>
 
+          {/* CAPTCHA for Login Only */}
+          {view === 'LOGIN' && (
+             <div className="flex gap-2">
+                <div className="flex-1 bg-darker border border-border-base rounded-lg flex items-center justify-center text-txt-main font-mono text-lg font-bold select-none">
+                    {captcha.num1} {captcha.operator} {captcha.num2} = ?
+                </div>
+                <input
+                    type="number"
+                    placeholder="Code"
+                    value={captchaInput}
+                    onChange={(e) => setCaptchaInput(e.target.value)}
+                    className="w-24 bg-input-bg border border-border-base text-txt-main rounded-lg px-3 py-3 focus:border-primary focus:outline-none text-center font-bold"
+                    required
+                />
+                <button 
+                    type="button" 
+                    onClick={generateCaptcha}
+                    className="p-3 bg-hover text-txt-muted hover:text-primary rounded-lg transition"
+                >
+                    <RefreshCw size={20} />
+                </button>
+             </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -154,31 +242,16 @@ const App: React.FC = () => {
 
         <div className="mt-6 text-center">
             <button 
-                onClick={() => setView(view === 'LOGIN' ? 'REGISTER' : 'LOGIN')}
+                onClick={() => {
+                    setView(view === 'LOGIN' ? 'REGISTER' : 'LOGIN');
+                    setError('');
+                }}
                 className="text-primary hover:underline text-sm"
             >
                 {view === 'LOGIN' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
             </button>
         </div>
       </div>
-        
-      {/* Helper Section for Test Accounts */}
-      {view === 'LOGIN' && (
-          <div className="mt-8 p-4 bg-paper rounded-xl border border-border-base max-w-md w-full">
-              <h4 className="text-txt-muted text-sm font-semibold mb-2 uppercase tracking-wider">Test Accounts</h4>
-              <div className="grid grid-cols-2 gap-2">
-                  {TEST_ACCOUNTS.map((acc, i) => (
-                      <button 
-                        key={i}
-                        onClick={() => { setEmail(acc.u); setPassword(acc.p); }}
-                        className="text-xs bg-hover hover:bg-opacity-80 text-txt-muted py-1.5 px-3 rounded transition text-left truncate"
-                      >
-                        {acc.u}
-                      </button>
-                  ))}
-              </div>
-          </div>
-      )}
     </div>
   );
 };

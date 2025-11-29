@@ -28,8 +28,8 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile sidebar
   const [userListOpen, setUserListOpen] = useState(false); // Mobile user list
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  
-  // Private Room Join State
+
+  // Password Modal State
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pendingRoom, setPendingRoom] = useState<Room | null>(null);
   const [joinPassword, setJoinPassword] = useState('');
@@ -42,8 +42,8 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
 
   // Form State for Room Creation
   const [newRoomName, setNewRoomName] = useState('');
-  const [isNewRoomPrivate, setIsNewRoomPrivate] = useState(false);
-  const [newRoomPassword, setNewRoomPassword] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [roomPassword, setRoomPassword] = useState('');
 
   // Sync activeRoomId to Ref for socket listeners
   useEffect(() => {
@@ -79,13 +79,11 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
 
     // Socket Subscription
     const unsubscribe = subscribeToSocket((event) => {
-      // Use ref to get current room ID without triggering effect re-run
       const currentRoomId = activeRoomIdRef.current;
       
       switch (event.type) {
         case 'NEW_MESSAGE':
           setMessages(prev => {
-             // Only add if it belongs to current room
              if (event.payload.roomId === currentRoomId) {
                 return [...prev, event.payload];
              }
@@ -97,7 +95,6 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
           break;
         case 'ROOM_DELETED':
           setRooms(prev => prev.filter(r => r.id !== event.payload.roomId));
-          // If the current user is in the deleted room, boot them out
           if (currentRoomId === event.payload.roomId) {
             setActiveRoomId(null);
             alert("The room you were in has been deleted.");
@@ -111,7 +108,6 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
           break;
         case 'USER_JOINED':
           setUsers(prev => {
-            // Check for duplicates before adding
             if (prev.some(u => u.id === event.payload.id)) return prev;
             return [...prev, event.payload];
           });
@@ -124,7 +120,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
 
     return () => { unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser.id]); // Add currentUser.id to deps just in case, though usually stable
+  }, [currentUser.id]);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -132,43 +128,41 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
   }, [messages]);
 
   const handleJoinRoom = async (room: Room) => {
+    // 1. If already active, do nothing
     if (room.id === activeRoomId) return;
 
-    if (room.isPrivate) {
-      setPendingRoom(room);
-      setJoinPassword('');
-      setJoinError('');
-      setShowPasswordModal(true);
-      return;
+    // 2. If Private, show modal
+    if (room.isPrivate && room.createdBy !== currentUser.id) {
+        setPendingRoom(room);
+        setJoinPassword('');
+        setJoinError('');
+        setShowPasswordModal(true);
+        return;
     }
 
-    await executeJoinRoom(room.id);
+    // 3. Join Public or Own Room
+    await enterRoom(room.id);
   };
 
-  const executeJoinRoom = async (roomId: string) => {
-    setActiveRoomId(roomId);
-    const msgs = await mockBackend.getMessages(roomId);
-    setMessages(msgs);
-    if (window.innerWidth < 768) setSidebarOpen(false);
-  };
-
-  const handleJoinPrivateSubmit = async (e: FormEvent) => {
+  const submitPassword = async (e: FormEvent) => {
     e.preventDefault();
     if (!pendingRoom) return;
 
     if (joinPassword === pendingRoom.password) {
-      await executeJoinRoom(pendingRoom.id);
-      closePasswordModal();
+        await enterRoom(pendingRoom.id);
+        setShowPasswordModal(false);
+        setPendingRoom(null);
     } else {
-      setJoinError('Incorrect password');
+        setJoinError("Incorrect password");
     }
   };
 
-  const closePasswordModal = () => {
-    setShowPasswordModal(false);
-    setPendingRoom(null);
-    setJoinPassword('');
-    setJoinError('');
+  const enterRoom = async (roomId: string) => {
+    setActiveRoomId(roomId);
+    const msgs = await mockBackend.getMessages(roomId);
+    setMessages(msgs);
+    // Close mobile sidebar if open
+    if (window.innerWidth < 768) setSidebarOpen(false);
   };
 
   const handleSendMessage = async (e?: FormEvent) => {
@@ -195,9 +189,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
     if (!file || !activeRoomId) return;
 
     try {
-      // Requirement: Convert to WebP
       const webpBase64 = await convertImageToWebP(file);
-      
       await mockBackend.sendMessage({
         roomId: activeRoomId,
         senderId: currentUser.id,
@@ -221,24 +213,25 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
     try {
       await mockBackend.createRoom({
         name: newRoomName,
-        isPrivate: isNewRoomPrivate,
-        password: isNewRoomPrivate ? newRoomPassword : undefined,
+        isPrivate,
+        password: isPrivate ? roomPassword : undefined,
         createdBy: currentUser.id,
-        description: 'New custom room'
+        description: isPrivate ? 'Private Room' : 'Public Room'
       });
       setShowCreateRoom(false);
       setNewRoomName('');
-      setNewRoomPassword('');
-      setIsNewRoomPrivate(false);
+      setIsPrivate(false);
+      setRoomPassword('');
     } catch (err) {
       alert("Failed to create room");
     }
   };
   
   const handleDeleteRoom = async (roomId: string) => {
-    if (!window.confirm("Are you sure you want to delete this room? This action cannot be undone.")) return;
+    if (!window.confirm("Are you sure you want to delete this room?")) return;
     try {
         await mockBackend.deleteRoom(roomId);
+        if (activeRoomId === roomId) setActiveRoomId(null);
     } catch (error) {
         console.error("Failed to delete room", error);
         alert("Could not delete room");
@@ -250,6 +243,8 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
     return `${name}@*****`;
   };
 
+  const currentRoom = rooms.find(r => r.id === activeRoomId);
+
   return (
     <div className="flex h-screen w-full bg-darker justify-center transition-colors duration-300">
       <div className="flex h-full w-full max-w-[1440px] bg-darker overflow-hidden relative shadow-2xl">
@@ -260,7 +255,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
             <Menu size={24} />
         </button>
         <h1 className="font-bold text-txt-main truncate">
-            {rooms.find(r => r.id === activeRoomId)?.name || 'Select Room'}
+            {currentRoom?.name || 'Chat App'}
         </h1>
         <button onClick={() => setUserListOpen(!userListOpen)} className="text-txt-main">
             <UserIcon size={24} />
@@ -277,6 +272,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
           <button 
             onClick={() => setShowCreateRoom(true)}
             className="p-2 bg-hover hover:bg-opacity-80 rounded-full transition text-txt-main"
+            title="Create Room"
           >
             <Plus size={18} />
           </button>
@@ -284,35 +280,32 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
         
         <div className="flex-1 overflow-y-auto custom-scroll p-2 space-y-2">
           {rooms.map(room => (
-            <button
-              key={room.id}
-              onClick={() => handleJoinRoom(room)}
-              className={`w-full p-3 rounded-lg flex items-center justify-between transition group
-                ${activeRoomId === room.id ? 'bg-primary/20 border border-primary/50 text-txt-main' : 'hover:bg-hover text-txt-muted hover:text-txt-main'}
-              `}
-            >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                {room.isPrivate ? <Lock size={16} className="text-amber-500 flex-shrink-0" /> : <Hash size={16} className="text-txt-muted flex-shrink-0" />}
-                <div className="text-left overflow-hidden">
-                    <span className="block font-medium truncate">{room.name}</span>
-                    <span className="text-xs opacity-60 truncate block">{room.description}</span>
+            <div key={room.id} className="relative group">
+                <button
+                onClick={() => handleJoinRoom(room)}
+                className={`w-full p-3 rounded-lg flex items-center justify-between transition
+                    ${activeRoomId === room.id ? 'bg-primary/20 border border-primary/50 text-txt-main' : 'hover:bg-hover text-txt-muted hover:text-txt-main'}
+                `}
+                >
+                <div className="flex items-center gap-3">
+                    {room.isPrivate ? <Lock size={16} /> : <Hash size={16} />}
+                    <span className="font-medium truncate">{room.name}</span>
                 </div>
-              </div>
-
-              {currentUser.id === room.createdBy && (
-                 <div
-                    role="button"
-                    title="Delete Room"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteRoom(room.id);
-                    }}
-                    className="ml-2 p-1.5 text-txt-muted hover:text-red-400 hover:bg-red-500/10 rounded-md transition opacity-0 group-hover:opacity-100 focus:opacity-100"
-                 >
-                    <Trash2 size={16} />
-                 </div>
-              )}
-            </button>
+                </button>
+                
+                {currentUser.id === room.createdBy && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteRoom(room.id);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-txt-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition"
+                        title="Delete Room"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                )}
+            </div>
           ))}
         </div>
 
@@ -329,11 +322,10 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
                 <button 
                     onClick={toggleTheme}
                     className="p-2 text-txt-muted hover:text-primary rounded-full hover:bg-hover transition"
-                    title="Toggle Theme"
                 >
                     {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
-                <button onClick={onLogout} className="p-2 text-txt-muted hover:text-red-400 rounded-full hover:bg-hover transition" title="Logout">
+                <button onClick={onLogout} className="p-2 text-txt-muted hover:text-red-400 rounded-full hover:bg-hover transition">
                     <LogOut size={18} />
                 </button>
             </div>
@@ -348,8 +340,8 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
             <div className="w-20 h-20 bg-paper rounded-full flex items-center justify-center mb-6 shadow-sm">
                 <MessageSquare size={40} className="text-txt-muted" />
             </div>
-            <h3 className="text-2xl font-bold text-txt-main mb-2">Welcome, {currentUser.name}!</h3>
-            <p className="max-w-md">Please select a room from the sidebar to start chatting. Private rooms require a password to enter.</p>
+            <h3 className="text-2xl font-bold text-txt-main mb-2">Select a Room</h3>
+            <p className="max-w-md">Choose a room from the sidebar to start chatting or create your own private space.</p>
           </div>
         ) : (
           <>
@@ -418,7 +410,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
                         type="text"
                         value={inputMessage}
                         onChange={(e) => setInputMessage(e.target.value)}
-                        placeholder={`Message #${rooms.find(r => r.id === activeRoomId)?.name || '...'}`}
+                        placeholder={`Message #${currentRoom?.name || '...'}`}
                         className="flex-1 bg-input-bg border border-border-base text-txt-main rounded-full px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition placeholder-txt-muted"
                     />
                     <button 
@@ -434,31 +426,31 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
         )}
       </main>
 
-      {/* RIGHT: User List Sidebar (Collapsible) */}
+      {/* RIGHT: User List Sidebar */}
       <aside className={`
-        fixed md:relative z-30 right-0 w-64 h-full bg-paper border-l border-border-base flex flex-col transition-transform duration-300
+        fixed md:relative z-30 right-0 w-72 h-full bg-paper border-l border-border-base flex flex-col transition-transform duration-300
         ${userListOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
       `}>
          <div className="p-4 border-b border-border-base flex justify-between items-center">
-            <h2 className="font-bold text-txt-main">Online Users</h2>
+            <h2 className="font-bold text-txt-main">Members</h2>
             <button className="md:hidden text-txt-muted" onClick={() => setUserListOpen(false)}>
                 <X size={18} />
             </button>
          </div>
          <div className="flex-1 overflow-y-auto custom-scroll p-2">
              {users.map(u => (
-                 <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-hover rounded-lg transition opacity-90 hover:opacity-100">
-                     <div className="relative">
-                         <img src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full object-cover bg-slate-700" />
-                         {u.isOnline && (
-                             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-paper rounded-full"></span>
-                         )}
-                     </div>
-                     <div className="flex flex-col overflow-hidden">
-                         <span className="text-sm font-medium text-txt-main truncate">{u.name}</span>
-                         <span className="text-xs text-txt-muted truncate">{maskEmail(u.email)}</span>
-                     </div>
-                 </div>
+                <div key={u.id} className="flex items-center gap-3 p-3 mb-1 bg-hover/20 hover:bg-hover rounded-lg transition border border-transparent hover:border-border-base">
+                    <div className="relative">
+                        <img src={u.avatar} alt={u.name} className="w-10 h-10 rounded-full object-cover bg-slate-700" />
+                        {u.isOnline && (
+                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-paper rounded-full"></span>
+                        )}
+                    </div>
+                    <div className="flex flex-col overflow-hidden">
+                        <span className="text-sm font-bold text-txt-main truncate">{u.name}</span>
+                        <span className="text-[10px] text-txt-muted opacity-60 truncate">{maskEmail(u.email)}</span>
+                    </div>
+                </div>
              ))}
          </div>
       </aside>
@@ -492,73 +484,65 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
                             onChange={e => setNewRoomName(e.target.value)}
                         />
                     </div>
+                    
                     <div className="flex items-center gap-2">
                         <input 
                             type="checkbox" 
                             id="isPrivate"
-                            checked={isNewRoomPrivate}
-                            onChange={e => setIsNewRoomPrivate(e.target.checked)}
-                            className="w-4 h-4 rounded border-border-base bg-input-bg text-primary focus:ring-offset-0"
+                            checked={isPrivate}
+                            onChange={e => setIsPrivate(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-600 text-primary focus:ring-primary bg-input-bg"
                         />
-                        <label htmlFor="isPrivate" className="text-sm text-txt-main">Private Room (Requires Password)</label>
+                        <label htmlFor="isPrivate" className="text-txt-main">Private Room</label>
                     </div>
-                    {isNewRoomPrivate && (
-                         <div>
-                            <label className="block text-sm text-txt-muted mb-1">Room Password</label>
+
+                    {isPrivate && (
+                        <div>
+                            <label className="block text-sm text-txt-muted mb-1">Password</label>
                             <input 
-                                required={isNewRoomPrivate}
+                                required
                                 type="password" 
                                 className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none"
-                                value={newRoomPassword}
-                                onChange={e => setNewRoomPassword(e.target.value)}
+                                value={roomPassword}
+                                onChange={e => setRoomPassword(e.target.value)}
                             />
                         </div>
                     )}
+                    
                     <button type="submit" className="w-full py-3 bg-primary hover:bg-blue-600 rounded-lg font-bold text-white transition mt-2">
-                        Create Room
+                        Create
                     </button>
                 </form>
             </div>
         </div>
       )}
 
-      {/* Join Private Room Modal */}
+      {/* Password Modal */}
       {showPasswordModal && pendingRoom && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-          <div className="bg-paper border border-border-base p-6 rounded-2xl w-full max-w-sm shadow-2xl">
-             <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-2">
-                    <Lock className="text-amber-500" size={24} />
-                    <h3 className="text-xl font-bold text-txt-main">Private Room</h3>
+            <div className="bg-paper border border-border-base p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-txt-main">Locked Room</h3>
+                    <button onClick={() => setShowPasswordModal(false)} className="text-txt-muted hover:text-txt-main">
+                        <X size={20} />
+                    </button>
                 </div>
-                <button onClick={closePasswordModal} className="text-txt-muted hover:text-txt-main">
-                    <X size={20} />
-                </button>
+                <p className="text-txt-muted mb-4 text-sm">Enter password for <strong>{pendingRoom.name}</strong></p>
+                <form onSubmit={submitPassword} className="space-y-4">
+                    <input 
+                        autoFocus
+                        type="password" 
+                        placeholder="Password"
+                        className="w-full bg-input-bg border border-border-base rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none"
+                        value={joinPassword}
+                        onChange={e => setJoinPassword(e.target.value)}
+                    />
+                    {joinError && <p className="text-red-400 text-sm">{joinError}</p>}
+                    <button type="submit" className="w-full py-3 bg-primary hover:bg-blue-600 rounded-lg font-bold text-white transition">
+                        Enter Room
+                    </button>
+                </form>
             </div>
-            <p className="text-txt-muted mb-4">
-                Enter password to join <span className="text-txt-main font-medium">{pendingRoom.name}</span>
-            </p>
-            <form onSubmit={handleJoinPrivateSubmit}>
-                <input 
-                    autoFocus
-                    type="password"
-                    placeholder="Room Password"
-                    className={`w-full bg-input-bg border ${joinError ? 'border-red-500' : 'border-border-base'} rounded-lg p-3 text-txt-main focus:border-primary focus:outline-none mb-2`}
-                    value={joinPassword}
-                    onChange={e => { setJoinPassword(e.target.value); setJoinError(''); }}
-                />
-                {joinError && <p className="text-red-400 text-xs mb-4">{joinError}</p>}
-                
-                <div className="flex gap-3 mt-4">
-                    <button type="button" onClick={closePasswordModal} className="flex-1 py-2 bg-hover hover:bg-opacity-80 rounded-lg text-txt-main font-medium transition">
-                        Cancel
-                    </button>
-                    <button type="submit" className="flex-1 py-2 bg-primary hover:bg-blue-600 rounded-lg text-white font-bold transition">
-                        Join
-                    </button>
-                </div>
-            </form>
-          </div>
         </div>
       )}
 
@@ -578,18 +562,15 @@ const ChatApp: React.FC<ChatAppProps> = ({ currentUser, onLogout, onUserUpdate }
 const UserProfileModal: React.FC<{ user: User, onClose: () => void }> = ({ user, onClose }) => {
     const [name, setName] = useState(user.name);
     const [avatar, setAvatar] = useState(user.avatar);
-    // Initialize password as empty. User must type to change it.
     const [password, setPassword] = useState('');
     
     const handleSave = async (e: FormEvent) => {
         e.preventDefault();
         try {
-            // Prepare updates. Only include password if user typed something.
             const updates: Partial<User> = { name, avatar };
             if (password.trim()) {
                 updates.password = password;
             }
-
             await mockBackend.updateProfile(user.id, updates);
             onClose();
         } catch (error) {
