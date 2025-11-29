@@ -22,12 +22,21 @@ A modern, responsive chat application built with React, TypeScript, and Tailwind
 - **Login CAPTCHA**: A dynamic arithmetic challenge (+, -, *, /) is required during login to prevent automated bot access.
 - **Auth Simulation**: Secure password handling and session persistence using local storage.
 
+## 🤖 Powered by Google AI Studio
+
+This project was architected and developed using **Google AI Studio** and **Gemini models**.
+
+-   **Code Generation**: The complete codebase, including React components, TypeScript interfaces, and Tailwind styling, was generated via iterative prompting.
+-   **Algorithm Implementation**: Complex logic such as the **Client-side WebP Conversion** service and the **Math CAPTCHA** generator were created by Gemini.
+-   **Mock Backend**: The `mockBackend` service, which simulates WebSocket events (`USER_JOINED`, `NEW_MESSAGE`) and LocalStorage persistence, was designed by AI to replicate a real-world full-stack environment without requiring a server.
+
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 19, TypeScript
-- **Styling**: Tailwind CSS (with CSS Variables for theming)
-- **Icons**: Lucide React
-- **State/Storage**: React Hooks & LocalStorage (simulating a backend database)
+-   **Frontend**: React 19, TypeScript
+-   **Styling**: Tailwind CSS (with CSS Variables for theming)
+-   **Icons**: Lucide React
+-   **State/Storage**: React Hooks & LocalStorage (simulating a backend database)
+-   **AI Assistance**: Google Gemini via AI Studio
 
 ## 📋 Usage Rules
 
